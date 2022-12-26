@@ -110,31 +110,26 @@ $$
 \end{align}
 $$
 
-下面我们使用 `scipy` 里的 `CubicSpline` 来对随机的 10 个 $x, y \in (-1, 1)$ 的点进行 Cubic Spline:
+下面我们使用 `scipy` 里的 `CubicSpline` 来点 (10, 35), (50,35), (50, 5), (5, 5),(5,20), (30,20) 进行 Cubic Spline:
 
 ```py
 from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
 import numpy as np
 
-t = np.arange(10)
-# Randomly generate 10 Points between -1 to 1.
-points = np.random.uniform(-1, 1, size=(10, 2))
+points = np.array([[10, 35], [50,35], [50, 5], [5, 5], [5,20], [30,20]])
+n = points.shape[0]
+t = np.arange(n)
 cs = CubicSpline(t, points)
-
-xs = np.linspace(-0.5, 9.6, 100)
-
-fig, ax = plt.subplots()
-ax.set_xlim(-1.1, 1.1)
-ax.set_ylim(-1.1, 1.1)
-plt.plot(points[:,0], points[:,1], "o")
+xs = np.linspace(0, n-1, 100)
+plt.plot(points[:,0], points[:,1], "ro-")
 plt.plot(cs(xs)[:,0], cs(xs)[:,1])
 plt.show()
 ```
 
 <center>
 
-![Cubic spline to random points](./pics/Cubic.png)
+![Cubic Spline](./pics/cubic.png)
 
 </center>
 
@@ -146,13 +141,13 @@ plt.plot(xs, cs(xs)[:,0], label="S")
 plt.plot(xs, cs(xs, 1)[:,0], label="S'")
 plt.plot(xs, cs(xs, 2)[:,0], label="S''")
 plt.plot(xs, cs(xs, 3)[:,0], label="S'''")
-plt.legend(loc='lower left', ncol=2)
+plt.legend(loc='upper right', ncol=2)
 plt.show()
 ```
 
 <center>
 
-![](pics/Derivtive.png)
+![各阶导数](pics/CubicDer.png)
 
 </center>
 
@@ -160,23 +155,108 @@ plt.show()
 
 ## 3. Cubic Spline 的问题
 
+> 本节只提出问题，解决方案会在下一节提出。
 
+### 3.1 缺少环境约束
+
+由于轨迹规划通常都是在有障碍的环境内进行的，而 Cubic Spline 在生成轨迹的时候并不会考虑障碍物。例如上面的例子，假如原本的路径是在如下的地图中生成的，那么 Cubic Spline 以及均匀的时间分配下，生成的轨迹就会穿过障碍物，这样纵使轨迹再平滑也没有办法使用。
+
+<center>
+
+![穿墙问题](pics/CubicObs.png)
+
+</center>
+
+造成这个现象的主要原因是 Cubic Spline 在平滑两点之间的轨迹时会出现类似“超调”的现象。而这个超调的大小则是根据该段路径被分配的时间得到的，例如时间越长，则“超调”就越大。
+
+```py
+points = np.array([[10, 35], [50,35], [50, 5], [5, 5]])
+plt.plot(points[:,0], points[:,1], "ro")
+
+t = np.arange(4)
+for i in range(1,5):
+    t[2] = t[1] + i
+    t[3] = t[2] + 1
+    cs = CubicSpline(t, points)
+    xs = np.linspace(0, t[-1], 100)
+    plt.plot(cs(xs)[:,0], cs(xs)[:,1],label="dt2="+str(i))
+
+plt.legend(loc='upper right', ncol=2)
+plt.show()
+```
+
+<center>
+
+![超调](pics/CubicTime.png)
+
+</center>
+
+同样是上面的地图，当时间调节合适的时候，比如：经过每个点的时间分别是 [0, 1.7, 4.3, 6.8, 8.6,11.8] 的时候,就可以生成合理的轨迹。
+
+```py
+t2 = np.array([0, 1.7, 4.3, 6.8, 8.6, 11.8])
+cs2 = CubicSpline(t2, points)
+xs = np.linspace(0, t2[-1], 100)
+
+plt.plot(ox, oy, "sk")
+plt.plot(points[:,0], points[:,1], "ro-")
+plt.plot(cs2(xs)[:,0], cs2(xs)[:,1])
+```
+
+<center>
+
+![调整时间分配后的结果](pics/TimeTuning.png)
+
+</center>
+
+虽然时间分配可以解决“超调”的问题，但如何合理的分配时间呢？
+
+### 3.3 关键点的选择
+
+上面例子中的关键点虽然可以保证折线轨迹基本处于路的中间位置，但根据这些关键点来平滑轨迹的空间就缩小了很多。但如果可以使得关键点更靠近内部的障碍物，那么留给轨迹平滑的空间也有越大了。例如，将之前的关键点改后轨迹平滑的效果如下：
+
+<center>
+
+![调整时间分配后的结果](pics/MoveKeyPoints.png)
+
+</center>
+
+但如何合理的选择关键点呢？
+
+### 3.4 机器人的运动学约束
+
+很多机器人都是具有运动学约束的，例如，机器人的最大加速度，最大速度，最大转角速度等等。这些约束在轨迹平滑的时候也是必须考虑的，不然轨迹也是没有办法跟随的。例如下面画圈的位置，如果机器人的最小转弯半径太大，就无法非常好的跟随这条轨迹。
+
+<center>
+
+![太小的转弯半径](pics/CubWithCircle.png)
+
+</center>
+
+### 3.5 不够平滑
+
+通过之前对 Cubic Spline 的求导可以看出来，虽然 Cubic Spline 已经达到 $C^2$ 标准了，但在现实世界里，加加速度，甚至是加加加速度也应该是连续的，因此我们可以权衡一下计算量和平滑程度，适当的增加多项式的次数来使得轨迹更加平滑。
+
+但对于更多次数的多项式，求解的难度也会增加，我们该如何求解呢？
 
 ## 4. 轨迹优化
 
+为了解决上面的问题，我们引入 "Minimum Snap Trajectory Generation" 方法。
+
 > Ref:
-> - [Lecture | Motion Planning](https://www.shenlanxueyuan.com/course/575) 
+> - [Lecture | Gao Fei, Motion Planning](https://www.shenlanxueyuan.com/course/575) 
 > - [Paper | Minimum Snap Trajectory Generation and Control for Quadrotors](https://web.archive.org/web/20120713162030id_/http://www.seas.upenn.edu/~dmel/mellingerICRA11.pdf)
 
-而 Minimum Snap 简单来说就是使用 5 次多项式拟合原有轨迹中的关键点，
+
+首先解决最简单的问题，轨迹不够平滑，那就增加次数，3 次不够用 5 次， 5 次不够用 7 次。（为了简化表达式，接下来只展示 5 次多项式）
 
 $$
 x(t) = p_5 t^5 + p_4 t^4 + p_3 t^3 + p_2 t^2 + p_1 t + p_0
 $$
 
-其中 $p_i$ 为方程的因数，也是我们想要求解的。
+> 其中 $p_i$ 为方程的因数，也是我们想要求解的。
 
-那为什么叫 Minimum Snap 呢？首先我们要知道 Snap 是什么。上面的轨迹方程就是点的位置随时间变化的表达式，那么对轨迹求导就可以得到速度随时间变化的表达式，当我们求到第四次导的时候，就得到了 Snap 随时间变化的表达式了。
+接下来就是求解了，这里我们使用的方法叫 "Minimum Snap"。为什么叫 "Minimum Snap" 呢？首先我们要知道 Snap 是什么。上面的轨迹方程就是点的位置随时间变化的表达式，那么对轨迹求导就可以得到速度随时间变化的表达式，当我们求到第四次导的时候，就得到了 Snap 随时间变化的表达式了。
 
 $$
 \begin{alignat*}{6}
@@ -188,27 +268,37 @@ $$
 \end{alignat*}
 $$
 
-那么，我们为什么要最小化 Snap 呢？因为对于一个二次型函数，其导数的零点，就其极值点。而我们所说的最小化 Snap，实际上是最小化 $Snap^2$。通过这样的性质
+那么，我们为什么要最小化 Snap 呢？一共有两个原因：
 
+- 原因一 (ChatGPT 告诉我的)：最小化 Snap 可以节省能量，当整个轨迹所需要的 Snap 最小的时候，也就意味着整个轨迹所消耗的能量最小。当然这个要看能量在轨迹规划中的权重如何，如果时间对我们来说更加重要，那么我们就应该最小化时间。
 
 <center>
 
-![二次函数取极值](./pics/SecOrder.png)
+![能量最小原理](./pics/ChatAns.png)
 
 </center>
 
+第二个原因是，Minimum Snap 可以将轨迹优化问题转变成一个 Quadratic Programming (QP) 问题，这样就可以使用现有的凸优化求解器来解决了。比如：
+
+- [CVX](http://cvxr.com/cvx/#:~:text=CVX%20is%20a%20Matlab-based%20modeling%20system%20for%20convex,For%20example%2C%20consider%20the%20following%20convex%20optimization%20model%3A)： 最出名的凸优化求解器，原版是基于 Matlab 的。
+- [CVXPY](https://www.cvxpy.org/) 和 [CVXOPT](https://cvxopt.org/)：虽然用不了原版的 CVX，但一些人仿造并开源了 Python 版本。
+- [SCIPY](https://docs.scipy.org/doc/scipy/tutorial/optimize.html)：如果你已经有 Scipy 并且不想再安装其他的软件包，那么你可以使用 Scipy 自带的凸优化求解器 scipy.optimize。
+- [OOQP](https://pages.cs.wisc.edu/~swright/ooqp/)：是 C++ 中常用的开源凸优化求解器，但代码只提供了 C 的接口，所以语法比较古老。
+- [OSQP](https://osqp.org/)：是一个轻量化，专门用来求解 QP 问题的求解器，且它开发了 C, Python, Julia, Matlab, R 语言的接口。
+- [OSQP-Eigen](https://robotology.github.io/osqp-eigen/)：习惯使用 Eigen 矩阵的人可以使用这个接口。
+
+> 拓展内容：
+> - 快速了解什么是凸优化 [UC berkeley web page| Convex Optimization](https://inst.eecs.berkeley.edu/~ee127/sp21/livebook/l_cp_main.html)
+
+
+接下来就要仔细讲一讲，如何将轨迹优化问题转变成一个 QP 问题。首先，我们要知道，QP 问题的形式是这样的：
+
 $$
-\begin{alignat*}{9}
-    & &&y(x) &&= ax^2 + bx + c\\\\
-    &\because &&y(0) &&= start,\ y(T) = end\\
-    &\therefore && c &&= start\\
-    &\therefore && end &&= aT^2 + bT + start\\
-    &\therefore && a &&= (end - start - bT)/T^2\\\\
-    & &&\dot{y}(x) &&= 2ax + b \\
-    &Min\ &&y(x)^2 &&= 4a^2x^2 +4abx + b^2\\\\
-    &\therefore &&a &&= 
+\begin{alignat*}{3}
+    &\min_{x}\quad &&\frac{1}{2}x^TPx + q^Tx + r \tag{1}\\
+    &\text{s.t.} &&Gx \leq h \tag{2}\\
+    & &&Ax = b \tag{3}
 \end{alignat*}
 $$
 
-
-
+其中： 公式 (1) 就是我们要最小化的目标函数，她必须是一个凸函数。而公式 (2) 和 (3) 则是该函数的约束条件，他们同样也必须是凸的。
