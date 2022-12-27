@@ -1,4 +1,4 @@
-# 基于多项式的轨迹平滑及优化
+# 轨迹平滑及优化 - 由浅入深
 
 ## 1. 光滑与连续
 
@@ -268,6 +268,40 @@ $$
 \end{alignat*}
 $$
 
+> 代数拓展：
+> 
+> 将上面的多项式转换成矩阵形式：
+>
+>$$
+\begin{bmatrix}
+    x(t)\\ x^{(1)}(t) \\ x^{(2)}(t) \\ x^{(3)}(t) \\ x^{(4)}(t)
+\end{bmatrix} = 
+\begin{bmatrix}
+    t^5 & t^4 & t^3 & t^2 & t & 1 \\
+    5t^4 & 4t^3 & 3t^2 & 2t & 1 & 0 \\
+    20t^3 & 12t^2 & 6t & 2 & 0 & 0 \\
+    60t^2 & 24t & 6 & 0 & 0 & 0 \\
+    120t & 24 & 0 & 0 & 0 & 0
+\end{bmatrix}
+\begin{bmatrix}
+    p_5 \\ p_4 \\ p_3\\ p_2 \\ p_1 \\ p_0
+\end{bmatrix}
+>$$
+>
+>再代数归纳一下，对于一个 $n$ 次多项式，其第 $k$ 次导数的表达式就是：
+>
+>$$
+f^{k}(t) = \sum_{i=k}^{n} A_i^k t^{i-k}p_i
+>$$
+>
+>$$
+A_i^k = 
+\begin{cases}
+    i!/(i-k)! = i(i-1)(i-2)...(i-k) & i \geq k \\
+    0 & i < k
+\end{cases}
+>$$
+
 那么，我们为什么要最小化 Snap 呢？一共有两个原因：
 
 - 原因一 (ChatGPT 告诉我的)：最小化 Snap 可以节省能量，当整个轨迹所需要的 Snap 最小的时候，也就意味着整个轨迹所消耗的能量最小。当然这个要看能量在轨迹规划中的权重如何，如果时间对我们来说更加重要，那么我们就应该最小化时间。
@@ -278,20 +312,20 @@ $$
 
 </center>
 
-第二个原因是，Minimum Snap 可以将轨迹优化问题转变成一个 Quadratic Programming (QP) 问题，这样就可以使用现有的凸优化求解器来解决了。比如：
+- 原因二，Minimum Snap 可以将轨迹优化问题转变成一个 Quadratic Programming (QP) 问题，这样就可以使用现有的凸优化求解器来解决了。比如：
 
-- [CVX](http://cvxr.com/cvx/#:~:text=CVX%20is%20a%20Matlab-based%20modeling%20system%20for%20convex,For%20example%2C%20consider%20the%20following%20convex%20optimization%20model%3A)： 最出名的凸优化求解器，原版是基于 Matlab 的。
-- [CVXPY](https://www.cvxpy.org/) 和 [CVXOPT](https://cvxopt.org/)：虽然用不了原版的 CVX，但一些人仿造并开源了 Python 版本。
-- [SCIPY](https://docs.scipy.org/doc/scipy/tutorial/optimize.html)：如果你已经有 Scipy 并且不想再安装其他的软件包，那么你可以使用 Scipy 自带的凸优化求解器 scipy.optimize。
-- [OOQP](https://pages.cs.wisc.edu/~swright/ooqp/)：是 C++ 中常用的开源凸优化求解器，但代码只提供了 C 的接口，所以语法比较古老。
-- [OSQP](https://osqp.org/)：是一个轻量化，专门用来求解 QP 问题的求解器，且它开发了 C, Python, Julia, Matlab, R 语言的接口。
-- [OSQP-Eigen](https://robotology.github.io/osqp-eigen/)：习惯使用 Eigen 矩阵的人可以使用这个接口。
+  - [CVX](http://cvxr.com/cvx/#:~:text=CVX%20is%20a%20Matlab-based%20modeling%20system%20for%20convex,For%20example%2C%20consider%20the%20following%20convex%20optimization%20model%3A)： 最出名的凸优化求解器，原版是基于 Matlab 的。
+  - [CVXPY](https://www.cvxpy.org/) 和 [CVXOPT](https://cvxopt.org/)：虽然用不了原版的 CVX，但一些人仿造并开源了 Python 版本。
+  - [SCIPY](https://docs.scipy.org/doc/scipy/tutorial/optimize.html)：如果你已经有 Scipy 并且不想再安装其他的软件包，那么你可以使用 Scipy 自带的凸优化求解器 scipy.optimize。
+  - [OOQP](https://pages.cs.wisc.edu/~swright/ooqp/)：是 C++ 中常用的开源凸优化求解器，但代码只提供了 C 的接口，所以语法比较古老。
+  - [OSQP](https://osqp.org/)：是一个轻量化，专门用来求解 QP 问题的求解器，且它开发了 C, Python, Julia, Matlab, R 语言的接口。
+  - [OSQP-Eigen](https://robotology.github.io/osqp-eigen/)：习惯使用 Eigen 矩阵的人可以使用这个接口。
 
 > 拓展内容：
 > - 快速了解什么是凸优化 [UC berkeley web page| Convex Optimization](https://inst.eecs.berkeley.edu/~ee127/sp21/livebook/l_cp_main.html)
 
 
-接下来就要仔细讲一讲，如何将轨迹优化问题转变成一个 QP 问题。首先，我们要知道，QP 问题的形式是这样的：
+接下来就要仔细讲一讲，如何最小化 snap，即将轨迹优化问题转变成一个 QP 问题。首先，我们要知道，QP 问题的形式是这样的：
 
 $$
 \begin{alignat*}{3}
@@ -301,4 +335,107 @@ $$
 \end{alignat*}
 $$
 
-其中： 公式 (1) 就是我们要最小化的目标函数，她必须是一个凸函数。而公式 (2) 和 (3) 则是该函数的约束条件，他们同样也必须是凸的。
+其中： 公式 (1) 就是我们要最小化的目标函数，必须是一个凸函数。公式 (2) 和 (3) 是该函数的约束条件，他们同样也必须是凸的。
+
+对于一个 n 次多项式 $f(t)$ 来说，其 snap 是：
+
+$$
+f^{(4)}(t) = \sum_{i \geq 4}^{n} i(i-1)(i-2)(i-3)t^{i-4}p_i
+$$
+
+最小化 snap，严谨来说是最小化 snap 的总和，同时要确保其是一个二次型函数，所以我们的目标函数在 $T_{j-1}$ 到 ${T_j}$ 段上为：
+
+$$
+J(T) = \int_{T_{j-1}}^{T_j} (f^{(4)}(t))^2 dt
+$$
+
+将其转换为 QP 的形式：
+
+首先，我们将 $(f^{(4)}(t))^2$ 展开：
+
+$$
+\begin{alignat*}{3}
+    &\ &&f^{(4)}(t) &&= \sum_{i \geq 4}^{n} i(i-1)(i-2)(i-3)t^{i-4}p_i\\
+    & \Rightarrow &&(f^{(4)}(t))^2 &&= \sum_{i \geq 4, l \geq 4}^{n} i(i-1)(i-2)(i-3)l(l-1)(l-2)(l-3)t^{i+l-8}p_ip_l\\
+\end{alignat*}
+$$
+
+然后对其积分：
+
+$$
+\begin{align*}
+    J(T) &= \int_{T_{j-1}}^{T_j} (f^{(4)}(t))^2 dt \\
+    &= \sum_{i \geq 4, l \geq 4}^{n} \frac{i(i-1)(i-2)(i-3)l(l-1)(l-2)(l-3)}{i+l-7}T_j^{i+l-7}T_{j-1}^{i+l-7}p_ip_l\\
+    &=\begin{bmatrix}
+        \vdots \\ p_i \\ \vdots
+    \end{bmatrix}^T
+    \begin{bmatrix}
+        \vdots & \vdots\\ 
+        \dots \frac{i(i-1)(i-2)(i-3)j(j-1)(j-2)(j-3)}{i + j - 7}(T_j^{i+j-7} - T_{j-1}^{i+j-7}) &
+        \frac{i(i-1)(i-2)(i-3)(j+1)j(j-1)(j-2)}{i + j - 6}(T_j^{i+j+1-7} - T_{j-1}^{i+j+1-7})\dots 
+        \\ \vdots & \vdots
+    \end{bmatrix}^T
+    \begin{bmatrix}
+        \vdots \\ p_i \\ \vdots
+    \end{bmatrix}\\
+    &= P^TQP
+\end{align*}
+$$
+
+此处的 Python 代码为：
+
+```py
+import numpy as np
+def CompurteQ(n,r,ts,te):
+    '''
+    args:
+        n is the number of parameters
+        r is the derivative order
+        ts is the start time of this segment
+        te is the end time of this segment
+    return:
+        one segment Q matrix of QP.
+    '''
+    Q = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            if i >= r and j >= r:
+                factor = i+j-2*r+1
+                Q[n-1-i][n-1-j] = factorial(i,r)*factorial(j,r)/factor*(te**factor-ts**factor)
+    return Q
+
+def factorial(n,r):
+    '''
+    return A_n^(n-r)
+    '''
+    if (n < r):
+        return 0
+    ans = 1
+    for _ in range(r):
+        ans = ans*n
+        n -= 1
+        
+    return ans
+```
+
+对于整段轨迹（假设我们有 M 段），则我们的目标函数为：
+
+$$
+\begin{align*}
+    J &= J_1 + J_2 + \dots + J_M\\
+      &= \sum_{m=1}^{M} P_m^TQ_mP_m \\
+      &= \begin{bmatrix}
+        P_0 \\ P_1 \\ \vdots \\ P_M
+      \end{bmatrix}^T
+      \begin{bmatrix}
+        Q_0 & 0 & \dots & 0 \\
+        0 & Q_1 & \dots & 0 \\
+        \vdots & \vdots & \ddots & \vdots \\
+        0 & 0 & \dots & Q_M
+      \end{bmatrix}
+      \begin{bmatrix}
+        P_0 \\ P_1 \\ \vdots \\ P_M
+      \end{bmatrix}
+\end{align*}
+$$
+
