@@ -241,6 +241,8 @@ plt.plot(cs2(xs)[:,0], cs2(xs)[:,1])
 
 ## 4. 轨迹优化
 
+### 4.1 Minimum Snap
+
 为了解决上面的问题，我们引入 "Minimum Snap Trajectory Generation" 方法。
 
 > Ref:
@@ -343,6 +345,8 @@ $$
 f^{(4)}(t) = \sum_{i \geq 4}^{n} i(i-1)(i-2)(i-3)t^{i-4}p_i
 $$
 
+### 4.2 目标函数
+
 最小化 snap，严谨来说是最小化 snap 的总和，同时要确保其是一个二次型函数，所以我们的目标函数在 $T_{j-1}$ 到 ${T_j}$ 段上为：
 
 $$
@@ -438,4 +442,6 @@ $$
       \end{bmatrix}
 \end{align*}
 $$
+
+### 4.3 约束
 

@@ -24,7 +24,7 @@ class MinSnap:
         # Compute QP cost function matrix
         q_i_cost = []
         for i in range(n_poly):
-            q_i_cost.append(self.compute_q(n_order+1, n_obj, time_set[i], time_set[i+1]))
+            q_i_cost.append(self.CompurteQ(n_order+1, n_obj, time_set[i], time_set[i+1]))
         q_cost = scipy.linalg.block_diag(*q_i_cost)
         p_cost = np.zeros(q_cost.shape[0])
 
@@ -90,6 +90,37 @@ class MinSnap:
                 q[i, j] = (math.factorial(i)/math.factorial(k1)) * (math.factorial(j)/math.factorial(k2)) * (pow(t_e,k)-pow(t_i,k)) / k
                 q[j,i] = q[i,j]
         return q
+
+    def factorial(self,n,r):
+        '''
+        return A_n^(n-r)
+        '''
+        if (n < r):
+            return 0
+        ans = 1
+        for _ in range(r):
+            ans = ans*n
+            n -= 1
+            
+        return ans
+
+    def CompurteQ(self,n,r,ts,te):
+        '''
+        args:
+            n is the number of parameters
+            r is the derivative order
+            ts is the start time of this segment
+            te is the end time of this segment
+        return:
+            one segment Q matrix of QP.
+        '''
+        Q = np.zeros((n,n))
+        for i in range(n):
+            for j in range(n):
+                if i >= r and j >= r:
+                    factor = i+j-2*r+1
+                    Q[i][j] = self.factorial(i,r)*self.factorial(j,r)/factor*(te**factor-ts**factor)
+        return Q
 
     def compute_t_vec(self, t, n_order, k):
         t_vector = np.zeros(n_order+1)
@@ -203,19 +234,25 @@ def get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, sample_rate):
         a[2].append(np.dot(np.array(t_array_a),Matrix_z[ : , id]))
     return p, v, a, sample_list
 
+(10, 35), (50,35), (50, 5), (5, 5),(5,20), (30,20)
 def main():
-    way_points = np.array([[0,0,0],
-                           [1.5,0.125,-0.75],
-                           [2.5,1.25,1.75],
-                           [2.1,0.4,0.5]])
+    way_points = np.array([[10, 35, 0],
+                            [50,35, 0],
+                            [50, 5, 0], 
+                            [5, 5, 0],
+                            [5, 20, 0],
+                            [30,20, 0]])
+
     for i in range(way_points.shape[0]):
         plt.plot(way_points[i,0],way_points[i,1],'ro')
-        
-    time_set = np.array([0,0.5])
-    time_set, Matrix_x, Matrix_y, Matrix_z = minimum_snap_traj(way_points, 1, 5, 3)
-    p, v, a, sample_list = get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, 100)
-    # print(np.max(p[0]))
-    plt.plot(p[0],p[1])
+    for t in range(5,100,5):
+        time_set, Matrix_x, Matrix_y, Matrix_z = minimum_snap_traj(way_points, 45, 5, 4)
+        p, v, a, sample_list = get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, 100)
+        left = min(p[0])
+        right = max(p[0])
+        if (max(abs(left),abs(right)) < 100):
+            plt.plot(p[0],p[1],label="t="+str(t))
+    plt.legend()
     plt.show()
         
 if __name__ == "__main__":
