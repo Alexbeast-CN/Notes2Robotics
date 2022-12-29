@@ -1,0 +1,27 @@
+# Ignore Python bytecode files
+*.pyc
+
+# Ignore build directories
+build/
+dist/
+
+# Ignore virtual environment directories
+venv/
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore IDEs and text editors
+.idea/
+.vscode/
+
+# Ignore cache directories
+__pycache__/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.cache/
+
+# Ignore test files
+test/
+tests/

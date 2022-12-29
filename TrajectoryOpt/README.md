@@ -293,7 +293,7 @@ $$
 >再代数归纳一下，对于一个 $n$ 次多项式，其第 $k$ 次导数的表达式就是：
 >
 >$$
-f^{k}(t) = \sum_{i=k}^{n} A_i^k t^{i-k}p_i
+f^{(k)}(t) = \sum_{i=0}^{n} A_i^k t^{i-k}p_i
 >$$
 >
 >$$
@@ -303,6 +303,7 @@ A_i^k =
     0 & i < k
 \end{cases}
 >$$
+
 
 那么，我们为什么要最小化 Snap 呢？一共有两个原因：
 
@@ -337,7 +338,7 @@ $$
 \end{alignat*}
 $$
 
-其中： 公式 (1) 就是我们要最小化的目标函数，必须是一个凸函数。公式 (2) 和 (3) 是该函数的约束条件，他们同样也必须是凸的。
+其中： 公式 (1) 就是我们要最小化的目标函数，必须是一个凸函数。公式 (2) 和 (3) 是该函数的约束条件，他们都是线性的。
 
 用不太准确但通俗易懂的方式来描述就是在一定范围内找到目标函数的最小值：
 
@@ -392,7 +393,7 @@ $$
 
 ```py
 import numpy as np
-def CompurteQ(n,r,ts,te):
+def ComputeQ(n,r,ts,te):
     '''
     args:
         n is the number of parameters
@@ -447,12 +448,75 @@ $$
 
 ### 4.3 约束
 
-#### 4.3.1 边界约束
+在 QP 中，存在两种约束，一种是等式约束：$Ax = b$，另外一种是不等式约束： $Gx \leq h$。之前在解决 Cubic Spline 的时候已经提到过，对于轨迹规划问题，我们需要考虑的约束有路径点约束和连续性约束。这两种约束都是等式约束，因此可以作为 $Ax = b$ 的形式加入到 QP 中。
+
+#### 4.3.1 路径点约束
+
+对于起点和终点来说，车辆的状态必须是静止的，所以有:
+
+$$f_0^{(k)}(0) = f_M^{(k)}(T_M) = 0,\ k \in (0,r)$$
+
+> 例如 minimum snap 则 r = 4。共有 $2(r-1)$ 个等式
+
+当 $k=0$ 时，每段路径必须在路径点上：
+
+$$
+\begin{alignat*}{5}
+    &f_j(T_j) &&=\begin{bmatrix}
+        T^n_j & T_j^{n-1} & \dots & T_j^0
+    \end{bmatrix}
+    \begin{bmatrix}
+        p_{j,n} \\ p_{j,n-1} \\ \vdots \\ p_{j,0} 
+    \end{bmatrix} = {Pos}_j
+\end{alignat*}
+$$
+
+> 共有 $M-1$ 个等式，$M$ 是轨迹的段数
+
+统一格式后可以得到 $A_jP_j = d_j$，其中 $A_j$ 是与 $T$ 相关的一维横向量，$d_j$ 是与 $Pos_j$ 相关的一维纵向量。
 
 #### 4.3.2 连续性约束
 
-#### 4.3.3 动力学约束
+对任意一段轨迹 $f_j(t)$，其第 $k$ 阶导数 $f_j^{(k)}(t),\ k \in [0, r)$ 在起止点处分别与其前后段的轨迹连续，假设某段的终止点时间为 $T_j$，则有:
 
-#### 4.3.4 安全性约束
+$$
+\begin{alignat*}{5}
+    & &&f_j^{(k)}(T_j) = f_{j+1}^{(k)}(T_j)\\
+    &\Rightarrow &&\sum_{i\geq k} \frac{i!}{(i-k)!}T^{i-k}_jp_{j,i} - \sum_{l\geq k} \frac{l!}{(l-k)!}T^{l-k}_{j}p_{j+1,l} = 0\\
+    &\Rightarrow && \begin{bmatrix}
+        \dots \frac{i!}{(i-k)!}T^{i-k}_j \dots  -\frac{l!}{(l-k)!}T^{l-k}_{j} \dots
+    \end{bmatrix}
+    \begin{bmatrix}
+        \vdots \\ p_j \\ \vdots \\ p_{j+1} \\ \vdots 
+    \end{bmatrix}= 0\\
+    &\Rightarrow && \begin{bmatrix}
+        A_j &-A_{j+1}
+    \end{bmatrix}
+    \begin{bmatrix}
+        p_j \\ p_{j+1}
+    \end{bmatrix}=0
+\end{alignat*}
+$$
+
+> 共有 $(M-1)*(r-1)$ 个等式
+
+#### 4.3.3 小结
+
+上面的两个约束条件都是等式约束，因此可以拼接为一个大的矩阵等式 $Ax = b$。其中 $x$ 就是 $P$，而 $P$ 向量的大小是 $1\times M(n+1)$，$M$ 是轨迹的段数，$n$是多项式的阶数，$n+1$ 是多项式的参数数量。$b$ 向量的大小为 $1\times(M+1)r-2$，所以 $A$ 的大小为$(M+1)r-2 \times MN$。此部分的 Python 代码：
+
+```py
+
+```
+
+
+并且解决了 Cubic Spline 中连续性不够的问题。
 
 ### 5. 安全走廊
+
+为了让生成出来的轨迹满足安全性条件，
+
+> Ref:
+> [Paper | Zhepei Wang, Geometrically Constrained Trajectory Optimization
+for Multicopters](https://arxiv.org/pdf/2103.00190.pdf)
+
+### 6. 

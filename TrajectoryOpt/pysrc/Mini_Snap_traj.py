@@ -12,11 +12,16 @@ class MinSnap:
     def __init__(self) -> None:
         pass
 
-    def minsnap_trajectory_single_axis(self, way_points, time_set, n_order, n_obj, v_i, a_i, v_e, a_e):
+    def minsnap_trajectory_single_axis(self, way_points, time_set, n_order, n_obj):
         # Set init and end point
         p_i = way_points[0]
         p_e = way_points[-1]
-         
+        v_i = 0
+        v_e = 0
+        a_i = 0
+        a_e = 0
+        
+        
         # Set poly num and coeffient num
         n_poly = len(way_points) - 1
         n_coef = n_order  + 1
@@ -79,18 +84,7 @@ class MinSnap:
         results = m.solve()
         x = results.x
         return x
-
-    def compute_q(self, n, r , t_i, t_e):
-        q = np.zeros((n,n))
-        for i in range(r, n):
-            for j in range(i, n):
-                k1 = i - r 
-                k2 = j - r 
-                k = k1 + k2 +1
-                q[i, j] = (math.factorial(i)/math.factorial(k1)) * (math.factorial(j)/math.factorial(k2)) * (pow(t_e,k)-pow(t_i,k)) / k
-                q[j,i] = q[i,j]
-        return q
-
+    
     def factorial(self,n,r):
         '''
         return A_n^(n-r)
@@ -122,6 +116,8 @@ class MinSnap:
                     Q[i][j] = self.factorial(i,r)*self.factorial(j,r)/factor*(te**factor-ts**factor)
         return Q
 
+
+    
     def compute_t_vec(self, t, n_order, k):
         t_vector = np.zeros(n_order+1)
         for i in range(k, n_order+1):
@@ -165,9 +161,9 @@ def minimum_snap_traj(way_points, total_time, n_order, n_obj):
     # Arrange time roughly
     time_set = traj.time_arrange(way_points_n,T)
     # Get Matrix
-    p_x = traj.minsnap_trajectory_single_axis(way_points_n[0,:], time_set, n_order, n_obj, v_i[0], a_i[0], v_e[0], a_e[0])
-    p_y = traj.minsnap_trajectory_single_axis(way_points_n[1,:], time_set, n_order, n_obj, v_i[1], a_i[1], v_e[1], a_e[1])
-    p_z = traj.minsnap_trajectory_single_axis(way_points_n[2,:], time_set, n_order, n_obj, v_i[2], a_i[2], v_e[2], a_e[2])
+    p_x = traj.minsnap_trajectory_single_axis(way_points_n[0,:], time_set, n_order, n_obj)
+    p_y = traj.minsnap_trajectory_single_axis(way_points_n[1,:], time_set, n_order, n_obj)
+    p_z = traj.minsnap_trajectory_single_axis(way_points_n[2,:], time_set, n_order, n_obj)
     Matrix_x = np.transpose(p_x.reshape(n_poly,n_order+1))
     Matrix_y = np.transpose(p_y.reshape(n_poly,n_order+1))
     Matrix_z = np.transpose(p_z.reshape(n_poly,n_order+1))
@@ -182,9 +178,9 @@ def minimum_snap_traj_p2p(way_points, time_set, n_order, n_obj, v_i, a_i, v_e, a
     way_points_n = np.transpose(way_points_n)
     # Poly num == 1
     n_poly = len(way_points) - 1
-    p_x = traj.minsnap_trajectory_single_axis(way_points_n[0,:], time_set, n_order, n_obj, v_i[0], a_i[0], v_e[0], a_e[0])
-    p_y = traj.minsnap_trajectory_single_axis(way_points_n[1,:], time_set, n_order, n_obj, v_i[1], a_i[1], v_e[1], a_e[1])
-    p_z = traj.minsnap_trajectory_single_axis(way_points_n[2,:], time_set, n_order, n_obj, v_i[2], a_i[2], v_e[2], a_e[2])
+    p_x = traj.minsnap_trajectory_single_axis(way_points_n[0,:], time_set, n_order, n_obj)
+    p_y = traj.minsnap_trajectory_single_axis(way_points_n[1,:], time_set, n_order, n_obj)
+    p_z = traj.minsnap_trajectory_single_axis(way_points_n[2,:], time_set, n_order, n_obj)
     Matrix_x = np.transpose(p_x.reshape(n_poly,n_order+1))
     Matrix_y = np.transpose(p_y.reshape(n_poly,n_order+1))
     Matrix_z = np.transpose(p_z.reshape(n_poly,n_order+1))
@@ -234,7 +230,7 @@ def get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, sample_rate):
         a[2].append(np.dot(np.array(t_array_a),Matrix_z[ : , id]))
     return p, v, a, sample_list
 
-(10, 35), (50,35), (50, 5), (5, 5),(5,20), (30,20)
+
 def main():
     way_points = np.array([[10, 35, 0],
                             [50,35, 0],
@@ -245,14 +241,12 @@ def main():
 
     for i in range(way_points.shape[0]):
         plt.plot(way_points[i,0],way_points[i,1],'ro')
-    for t in range(5,100,5):
-        time_set, Matrix_x, Matrix_y, Matrix_z = minimum_snap_traj(way_points, 45, 5, 4)
-        p, v, a, sample_list = get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, 100)
-        left = min(p[0])
-        right = max(p[0])
-        if (max(abs(left),abs(right)) < 100):
-            plt.plot(p[0],p[1],label="t="+str(t))
-    plt.legend()
+        
+    time_set, Matrix_x, Matrix_y, Matrix_z = minimum_snap_traj(way_points, 45, 5, 4)
+    p, v, a, sample_list = get_traj(Matrix_x, Matrix_y, Matrix_z, time_set, 100)
+    left = min(p[0])
+    right = max(p[0])
+    plt.plot(p[0],p[1])
     plt.show()
         
 if __name__ == "__main__":
