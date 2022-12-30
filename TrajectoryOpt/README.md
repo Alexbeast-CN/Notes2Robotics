@@ -2,7 +2,7 @@
 
 ## 1. 光滑与连续
 
-> 推荐视频 [Youtube | Freya Holmér, The Continuity of Splines](https://youtu.be/jvPPXbo87ds)
+> 推荐视频: [Youtube | Freya Holmér, The Continuity of Splines](https://youtu.be/jvPPXbo87ds)
 > 
 轨迹优化，即使一条不光滑的曲线变得光滑。那什么是光滑？如下图所示，把一条折线变成曲线的过程就是光滑的过程。
 
@@ -247,7 +247,7 @@ plt.plot(cs2(xs)[:,0], cs2(xs)[:,1])
 
 > Ref:
 > - [Lecture | Gao Fei, Motion Planning](https://www.shenlanxueyuan.com/course/575) 
-> - [Paper | Minimum Snap Trajectory Generation and Control for Quadrotors](https://web.archive.org/web/20120713162030id_/http://www.seas.upenn.edu/~dmel/mellingerICRA11.pdf)
+> - [Paper | Daniel Mellinger and Vijay Kumar, Minimum Snap Trajectory, IRCA 2011](https://web.archive.org/web/20120713162030id_/http://www.seas.upenn.edu/~dmel/mellingerICRA11.pdf)
 
 
 首先解决最简单的问题，轨迹不够平滑，那就增加次数，3 次不够用 5 次， 5 次不够用 7 次。（为了简化表达式，接下来只展示 5 次多项式）
@@ -500,23 +500,86 @@ $$
 
 > 共有 $(M-1)*(r-1)$ 个等式
 
-#### 4.3.3 小结
-
-上面的两个约束条件都是等式约束，因此可以拼接为一个大的矩阵等式 $Ax = b$。其中 $x$ 就是 $P$，而 $P$ 向量的大小是 $1\times M(n+1)$，$M$ 是轨迹的段数，$n$是多项式的阶数，$n+1$ 是多项式的参数数量。$b$ 向量的大小为 $1\times(M+1)r-2$，所以 $A$ 的大小为$(M+1)r-2 \times MN$。此部分的 Python 代码：
+为了满足求解器的接口要求，我们将之前的约束条件拼接成一个 $Ax = b$。其中 $x$ 就是 $P$，而 $P$ 向量的大小是 $1\times M(n+1)$，$M$ 是轨迹的段数，$n$是多项式的阶数，$n+1$ 是多项式的参数数量。$b$ 向量的大小为 $1\times(M+1)r-2$，所以 $A$ 的大小为$(M+1)r-2 \times MN$。此部分的 Python 代码：
 
 ```py
-
+def ComputeEquation(self, n_seg, n_obj, n_coef):
+        '''
+        return the equality constrain matrix 'A' and vector 'b' in QP
+        '''
+        A = np.zeros((n_obj*(n_seg + 1) - 2, n_coef*n_seg))
+        b = np.zeros(n_obj*(n_seg + 1) - 2)
+        
+        n_eq = 0
+        # Start and End constrains: 2*(n_obj-1)
+        for i in range(n_obj-1):
+            A[i, 0:n_coef] = self.compute_t_vec(self.time_set[0], n_coef, i)
+            b[i] = 0 
+            A[i+n_obj-1, n_coef*(n_seg-1):n_coef*n_seg] = self.compute_t_vec(self.time_set[-1], n_coef, i)
+            b[i+n_obj-1] = 0
+            n_eq += 2
+        
+        # Points constrains and continous constraints: (n_seg - 1)*n_obj
+        for i in range(1,n_seg):
+            A[n_eq, n_coef*i:n_coef*(i+1)] = self.compute_t_vec(self.time_set[i], n_coef, 0)
+            b[n_eq] = np.array([[self.way_points[i]]])
+            n_eq += 1
+            for j in range(n_obj-1):
+                t_vec = self.compute_t_vec(self.time_set[i], n_coef, j)
+                A[n_eq+n_seg, n_coef*(i-1):n_coef*i] = t_vec
+                A[n_eq+n_seg, n_coef*i:n_coef*(i+1)] = -t_vec
+                n_eq += 1
+        
+        return A, b
 ```
 
-
-并且解决了 Cubic Spline 中连续性不够的问题。
-
-### 5. 安全走廊
-
-为了让生成出来的轨迹满足安全性条件，
+### 5. 安全飞行走廊
 
 > Ref:
-> [Paper | Zhepei Wang, Geometrically Constrained Trajectory Optimization
-for Multicopters](https://arxiv.org/pdf/2103.00190.pdf)
+> - [Paper | Sikang Liu, Safe Flight Corridors 3D, ICAR 2017](https://ieeexplore.ieee.org/ielaam/7083369/7875382/7839930-aam.pdf)
 
-### 6. 
+**虽然叫安全飞行走廊，但对地面移动机器人来说也同样适用。对多轴机器人并不适用，缺少相应的碰撞检测。**
+
+安全飞行走廊 (Safe Flight Corridor, SFC)，是一系列有着重叠区域的凸多边形/多面体在地图的可行区域中形成的联通起止点的通道。该通道在 QP 中可以当作不等式约束。
+
+- 找椭圆
+
+![找椭圆](./pics/ellipsoid.jpg)
+
+- 找多边形
+
+![找多边形](./pics/Polyhedron.jpg)
+
+- 生成 Bouding Box
+
+![生成 Bbox](./pics/bbox.jpg)
+
+- 收缩
+
+![收缩](./pics/shrink.png)
+
+<center>
+
+![安全飞行走廊](./pics/Corridor.png)
+
+</center>
+
+
+### 6. 时间分配
+
+> - [Paper | Zhepei Wang, GCOPTER](extension://bfdogplmndidlpjfhoijckpakkdjkkil/pdf/viewer.html?file=https%3A%2F%2Farxiv.org%2Fpdf%2F2103.00190.pdf)
+
+> 轨迹规划方向值得推荐代码仓库（当然还有很多我不了解的仓库同样很优秀）：
+> - [Kumar Robotics](https://github.com/KumarRobotics): 宾大 Vijay Kumar 的机器人实验室，他们在无人机领域做了杰出的工作，且很多工作都是开源的。
+> - [HKUST Aerial Robotics Group](https://github.com/HKUST-Aerial-Robotics)：港科大无人机组也是非常优秀的且开源了许多内容。
+> - [ZJU FAST Lab](https://github.com/ZJU-FAST-Lab)：浙大 FAST lab 是一个非常年轻的课题组，与港科一脉相承，且开源了许多值得学习的内容。
+> - Sikang Liu 的论文代码 （每份代码都有 ROS 版，可以直接下载 ROS Package）：
+>   - [KumarRobotics/jps3d](https://github.com/KumarRobotics/jps3d): C++ implementation of Jump Point Search and distance map planner
+>   - [sikang/DecompUtil](https://github.com/sikang/DecompUtil): C++ implementation of convex decomposition library
+>   - [sikang/motion_primitive_library](https://github.com/sikang/motion_primitive_library): C++ implementation of a motion planner.
+> - [LenaShengzhen/AerialRobotics](https://github.com/LenaShengzhen/AerialRobotics): 一个使用 Matlab 实现如下无人机轨迹规划 Pipeline 的代码仓库.
+>   - Path planning algorithms (Jump point search, JPS-PF )
+>   - Generating Convex Polytopes(Safe Flight Corridors)
+>   - Time Allocation(Average time allocation, Trapezoidal time allocation)
+>   - Trajectory planning(QP)
+>   - Trajectory following control(PD controller)
